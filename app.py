@@ -53,7 +53,7 @@ class SetupHandler(web.RequestHandler):
 
 class GetHandler(web.RequestHandler):
     @gen.coroutine
-    def get(self):
+    def get(self, id):
         simple = """
             SELECT %s;
             SELECT id, name, date_born, profession, hobby
@@ -64,18 +64,16 @@ class GetHandler(web.RequestHandler):
             SELECT id, name, date_born, profession, hobby
             FROM test_data ORDER BY random() LIMIT 1000
         """
-        self.write(u'Начало')
-        yield [self.make_request(random.choice([heavy, simple]), i) for i in xrange(100)]
-        self.write(u'<br/> Конец')
+        print 'Start %s' % id
+        params = [(random.choice([heavy, simple]), i) for i in xrange(100)]
+        yield list(map(lambda p: self.make_request(*p), params))
+        print 'Finish %s' % id
         self.finish()
 
     @gen.coroutine
     def make_request(self, sql, number):
         cursor = yield momoko.Op(self.application.db.execute, sql, (number,))
-        self.on_chunk(cursor)
-
-    def on_chunk(self, cursor):
-        self.write(u"<br/> Получен результат выполнения запроса: %s" % cursor.query)
+        self.write(u"Получен результат выполнения запроса: %s<br/>" % cursor.query)
         self.flush()
 
 class SetHandler(web.RequestHandler):
@@ -96,7 +94,7 @@ class SetHandler(web.RequestHandler):
 class Application(web.Application):
     def __init__(self):
         handlers = [
-            (r"/",       GetHandler),
+            (r"/(.*)/",  GetHandler),
             (r"/set/",   SetHandler),
             (r"/setup/", SetupHandler),
         ]
