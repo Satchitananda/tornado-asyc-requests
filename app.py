@@ -36,6 +36,7 @@ DATA_CHOICES = {
 
 
 class SetupHandler(web.RequestHandler):
+    @gen.coroutine
     def get(self):
         sql = """
             CREATE TABLE IF NOT EXISTS test_data (
@@ -46,9 +47,22 @@ class SetupHandler(web.RequestHandler):
                 hobby  varchar(80)
             );
         """
-        result = self.application.db.execute(sql)
+        self.application.db.execute(sql)
+        yield [self.create_entry() for i in xrange(5000)]
         self.write(u'Ладушки')
-        return result
+        self.finish()
+
+    @gen.coroutine
+    def create_entry(self):
+        sql = """
+            INSERT INTO test_data (name, date_born, profession, hobby)
+            VALUES (%s, %s, %s, %s)
+        """
+        name = random.choice(DATA_CHOICES['names'])
+        profession = random.choice(DATA_CHOICES['professions'])
+        hobby = random.choice(DATA_CHOICES['hobbies'])
+        date_born = datetime.datetime.now() - datetime.timedelta(days=randint(1, 365) * randint(18, 35))
+        yield momoko.Op(self.application.db.execute, sql, (name, date_born, profession, hobby))
 
 
 class GetHandler(web.RequestHandler):
@@ -76,27 +90,12 @@ class GetHandler(web.RequestHandler):
         self.write(u"Получен результат выполнения запроса: %s<br/>" % cursor.query)
         self.flush()
 
-class SetHandler(web.RequestHandler):
-    @gen.coroutine
-    def post(self):
-        sql = """
-            INSERT INTO test_data (name, date_born, profession, hobby)
-            VALUES (%s, %s, %s, %s)
-        """
-        name = random.choice(DATA_CHOICES['names'])
-        profession = random.choice(DATA_CHOICES['professions'])
-        hobby = random.choice(DATA_CHOICES['hobbies'])
-        date_born = datetime.datetime.now() - datetime.timedelta(days=randint(1, 365) * randint(18, 35))
-        yield momoko.Op(self.application.db.execute, sql, (name, date_born, profession, hobby))
-        self.write(u'Ладушки')
-        self.finish()
 
 class Application(web.Application):
     def __init__(self):
         handlers = [
-            (r"/(.*)/",  GetHandler),
-            (r"/set/",   SetHandler),
             (r"/setup/", SetupHandler),
+            (r"/(.*)/",  GetHandler),
         ]
         super(Application, self).__init__(handlers, debug=True)
         dsn = "dbname=test user=test password=test host=localhost port=5432"
